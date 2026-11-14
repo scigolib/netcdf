@@ -6,9 +6,8 @@ import (
 )
 
 // codec connects one netCDF type to the Go slice type its values decode into.
-// It is the package's single type-mapping layer: variable reads and attribute
-// values both go through it, and the writer will add the encode counterpart
-// here rather than a second switch.
+// It is the package's single type-mapping layer: variable reads, variable
+// writes and attribute values all go through it, in both directions.
 type codec struct {
 	// size is the number of bytes one value occupies in the file.
 	size int
@@ -21,11 +20,18 @@ type codec struct {
 	decode func(dst any, base int64, b []byte) bool
 	// value decodes b into a fresh, exactly-sized slice.
 	value func(b []byte) any
+	// sliceLen reports how many values src (a []T of the matching slice type,
+	// passed by value) holds. ok is false when src is not that type.
+	sliceLen func(src any) (n int64, ok bool)
+	// encode writes len(dst)/size values of src (a []T), starting at src index
+	// from, into dst as external big-endian bytes. It reports false for a wrong
+	// slice type or a selection beyond src.
+	encode func(dst []byte, from int64, src any) bool
 }
 
-// simpleCodec builds the codec of a type whose values decode with one
-// conversion from the external bytes.
-func simpleCodec[T any](size int, conv func([]byte) T) codec {
+// simpleCodec builds the codec of a type whose values move between the
+// external bytes and the Go type with one conversion each way.
+func simpleCodec[T any](size int, conv func([]byte) T, put func([]byte, T)) codec {
 	return codec{
 		size: size,
 		length: func(dst any) (int64, bool) {
@@ -52,6 +58,23 @@ func simpleCodec[T any](size int, conv func([]byte) T) codec {
 			}
 			return out
 		},
+		sliceLen: func(src any) (int64, bool) {
+			sl, ok := src.([]T)
+			if !ok {
+				return 0, false
+			}
+			return int64(len(sl)), true
+		},
+		encode: func(dst []byte, from int64, src any) bool {
+			sl, ok := src.([]T)
+			if !ok || from < 0 || from+int64(len(dst)/size) > int64(len(sl)) {
+				return false
+			}
+			for i := 0; i < len(dst)/size; i++ {
+				put(dst[i*size:], sl[from+int64(i)])
+			}
+			return true
+		},
 	}
 }
 
@@ -61,27 +84,27 @@ func simpleCodec[T any](size int, conv func([]byte) T) codec {
 func codecFor(t Type) (codec, bool) {
 	switch t {
 	case TypeByte:
-		return simpleCodec(1, int8Value), true
+		return simpleCodec(1, int8Value, putInt8), true
 	case TypeChar:
-		return simpleCodec(1, byteValue), true
+		return simpleCodec(1, byteValue, putByte), true
 	case TypeShort:
-		return simpleCodec(2, int16Value), true
+		return simpleCodec(2, int16Value, putInt16), true
 	case TypeInt:
-		return simpleCodec(4, int32Value), true
+		return simpleCodec(4, int32Value, putInt32), true
 	case TypeFloat:
-		return simpleCodec(4, float32Value), true
+		return simpleCodec(4, float32Value, putFloat32), true
 	case TypeDouble:
-		return simpleCodec(8, float64Value), true
+		return simpleCodec(8, float64Value, putFloat64), true
 	case TypeUByte:
-		return simpleCodec(1, byteValue), true
+		return simpleCodec(1, byteValue, putByte), true
 	case TypeUShort:
-		return simpleCodec(2, uint16Value), true
+		return simpleCodec(2, uint16Value, putUint16), true
 	case TypeUInt:
-		return simpleCodec(4, uint32Value), true
+		return simpleCodec(4, uint32Value, putUint32), true
 	case TypeInt64:
-		return simpleCodec(8, int64Value), true
+		return simpleCodec(8, int64Value, putInt64), true
 	case TypeUInt64:
-		return simpleCodec(8, uint64Value), true
+		return simpleCodec(8, uint64Value, putUint64), true
 	}
 	return codec{}, false
 }
@@ -107,3 +130,16 @@ func int64Value(b []byte) int64     { return int64Bits(binary.BigEndian.Uint64(b
 func uint64Value(b []byte) uint64   { return binary.BigEndian.Uint64(b) }
 func float32Value(b []byte) float32 { return math.Float32frombits(binary.BigEndian.Uint32(b)) }
 func float64Value(b []byte) float64 { return math.Float64frombits(binary.BigEndian.Uint64(b)) }
+
+// The encode counterparts; the signed ones write the two's-complement bits.
+
+func putByte(b []byte, v byte)       { b[0] = v }
+func putInt8(b []byte, v int8)       { b[0] = byte(v) } //nolint:gosec // two's-complement representation
+func putInt16(b []byte, v int16)     { binary.BigEndian.PutUint16(b, uint16(v)) }
+func putUint16(b []byte, v uint16)   { binary.BigEndian.PutUint16(b, v) }
+func putInt32(b []byte, v int32)     { binary.BigEndian.PutUint32(b, uint32(v)) } //nolint:gosec // two's-complement representation
+func putUint32(b []byte, v uint32)   { binary.BigEndian.PutUint32(b, v) }
+func putInt64(b []byte, v int64)     { binary.BigEndian.PutUint64(b, uint64(v)) } //nolint:gosec // two's-complement representation
+func putUint64(b []byte, v uint64)   { binary.BigEndian.PutUint64(b, v) }
+func putFloat32(b []byte, v float32) { binary.BigEndian.PutUint32(b, math.Float32bits(v)) }
+func putFloat64(b []byte, v float64) { binary.BigEndian.PutUint64(b, math.Float64bits(v)) }

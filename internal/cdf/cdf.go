@@ -7,9 +7,10 @@
 // Every value in the header and in the data is stored big-endian, and this
 // package decodes with an explicit binary.BigEndian / manual shifts only.
 //
-// The package is read-only: it parses a header into Header and computes how a
-// hyperslab of a variable maps to file offsets. It does no conversion of data
-// types; the caller decodes the bytes it asks for.
+// The package parses a header into Header, computes how a hyperslab of a
+// variable maps to file offsets, and encodes a header back, with the layout
+// and fill rules of the reference writer. It does no conversion of data types;
+// the caller decodes and encodes the bytes it asks for.
 //
 // Security: the input is untrusted. Every count, length and offset that comes
 // from the file is validated against the bytes that remain before memory is

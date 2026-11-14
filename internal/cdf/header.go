@@ -342,7 +342,7 @@ func (h *Header) computeShape(v *Var) error {
 	v.Shape = make([]int64, len(v.DimIDs))
 	product := int64(1)
 	for j, id := range v.DimIDs {
-		if id >= int64(len(h.Dims)) {
+		if id < 0 || id >= int64(len(h.Dims)) {
 			return corruptf("variable %q references dimension %d of %d", v.Name, id, len(h.Dims))
 		}
 		dimSize := h.Dims[id].Size
