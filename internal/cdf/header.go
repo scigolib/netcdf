@@ -108,7 +108,7 @@ func (h *Header) parseDims(c *cursor) error {
 	if count == 0 {
 		return nil
 	}
-	h.Dims = make([]Dim, 0, count)
+	h.Dims = make([]Dim, 0, capHint(count))
 	unlimited := 0
 	for i := int64(0); i < count; i++ {
 		d, err := h.parseDim(c)
@@ -137,9 +137,6 @@ func (h *Header) parseDim(c *cursor) (Dim, error) {
 	if err != nil {
 		return Dim{}, err
 	}
-	if size < 0 {
-		return Dim{}, c.corrupt("dimension %q has length %d", name, size)
-	}
 	return Dim{Name: name, Size: size}, nil
 }
 
@@ -159,7 +156,7 @@ func (h *Header) parseAttrs(c *cursor) ([]Attr, error) {
 	if count == 0 {
 		return nil, nil
 	}
-	attrs := make([]Attr, 0, count)
+	attrs := make([]Attr, 0, capHint(count))
 	for i := int64(0); i < count; i++ {
 		a, err := h.parseAttr(c)
 		if err != nil {
@@ -182,9 +179,6 @@ func (h *Header) parseAttr(c *cursor) (Attr, error) {
 	nelems, err := c.st(h.Version)
 	if err != nil {
 		return Attr{}, err
-	}
-	if nelems < 0 {
-		return Attr{}, c.corrupt("attribute %q has %d values", name, nelems)
 	}
 	pix := int64(typ.Size())
 	if nelems > maxAttrBytes/pix {
@@ -217,7 +211,7 @@ func (h *Header) parseVars(c *cursor) error {
 	if count == 0 {
 		return nil
 	}
-	h.Vars = make([]Var, 0, count)
+	h.Vars = make([]Var, 0, capHint(count))
 	for i := int64(0); i < count; i++ {
 		v, err := h.parseVar(c)
 		if err != nil {
@@ -245,9 +239,6 @@ func (h *Header) parseVar(c *cursor) (Var, error) {
 		id, err := c.st(h.Version)
 		if err != nil {
 			return Var{}, err
-		}
-		if id < 0 {
-			return Var{}, c.corrupt("variable %q has negative dimension id %d", name, id)
 		}
 		ids = append(ids, id)
 	}
@@ -289,9 +280,6 @@ func (h *Header) readType(c *cursor, what string) (Type, error) {
 // list, which the specification writes as tag 0 and count 0; netCDF-C also
 // accepts the list's own tag with a zero count, so both are allowed.
 func (h *Header) checkListHeader(c *cursor, tag uint32, count int64, want uint32, what string, minEntry int64) error {
-	if count < 0 {
-		return c.corrupt("negative %s count %d", what, count)
-	}
 	if count == 0 {
 		if tag != 0 && tag != want {
 			return c.corrupt("empty %s list with tag %d", what, tag)
@@ -308,6 +296,18 @@ func (h *Header) checkListHeader(c *cursor, tag uint32, count int64, want uint32
 		return c.corrupt("%d %s entries cannot fit in the %d remaining bytes", count, what, c.remaining())
 	}
 	return nil
+}
+
+// capHint bounds a list's initial capacity. The count is declared by the file:
+// it is bounded by maxEntries and by the bytes that remain, but a claimed
+// million entries would still allocate the slice's whole backing array before a
+// single entry has been read. The slice grows as the entries actually parse.
+func capHint(count int64) int {
+	const maxHint = 256
+	if count > maxHint {
+		return maxHint
+	}
+	return int(count)
 }
 
 // layout computes each variable's shape, strides and slab size, resolves the
