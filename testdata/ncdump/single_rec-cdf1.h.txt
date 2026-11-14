@@ -1,0 +1,6 @@
+netcdf single_rec-cdf1 {
+dimensions:
+	time = UNLIMITED ; // (5 currently)
+variables:
+	byte b(time) ;
+}

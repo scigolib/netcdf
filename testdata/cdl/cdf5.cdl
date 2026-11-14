@@ -1,0 +1,16 @@
+netcdf cdf5 {
+dimensions:
+	n = 3 ;
+variables:
+	ubyte ub(n) ;
+	ushort us(n) ;
+	uint ui(n) ;
+	int64 i64(n) ;
+	uint64 u64(n) ;
+data:
+	ub = 0UB, 128UB, 255UB ;
+	us = 0US, 32768US, 65535US ;
+	ui = 0U, 2147483648U, 4294967295U ;
+	i64 = -9223372036854775807LL, 0LL, 9223372036854775807LL ;
+	u64 = 0ULL, 9223372036854775808ULL, 18446744073709551615ULL ;
+}

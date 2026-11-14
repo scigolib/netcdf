@@ -1,0 +1,11 @@
+netcdf types-cdf2 {
+dimensions:
+	n = 5 ;
+variables:
+	byte vb(n) ;
+	char vc(n) ;
+	short vs(n) ;
+	int vi(n) ;
+	float vf(n) ;
+	double vd(n) ;
+}

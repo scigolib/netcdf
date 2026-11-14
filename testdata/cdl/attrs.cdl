@@ -1,0 +1,13 @@
+netcdf attrs {
+dimensions:
+	d = 2 ;
+variables:
+	int v(d) ;
+		v:units = "count" ;
+		v:valid_range = 0, 100 ;
+// global attributes:
+	:title = "attribute types" ;
+	:reals = 1.5, -2.25 ;
+data:
+	v = 3, 4 ;
+}
