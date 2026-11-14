@@ -7,8 +7,7 @@ each) and are committed deliberately.
 
 ## Oracle
 
-- netCDF-C **v4.10.1**, pin `ad3d53827` (2026-07-09), source at
-  `R:\upstream\github.com\Unidata\netcdf-c`.
+- netCDF-C **v4.10.1**, pin `ad3d53827` (2026-07-09), from the netCDF-C repository.
 - Built in WSL from that source with m4 and zlib extracted without root:
 
   ```sh
@@ -81,17 +80,24 @@ A regenerated fixture makes the test pass by construction — check the diff
 before committing it; the committed `ncdump` dump is what proves the values.
 
 The initial fill is compared with the oracle through `fill-cdf*`; record
-extension fill cannot be expressed in CDL, so its oracle evidence is the
-manual probe described in ADR-002 §5.
+extension fill cannot be expressed in CDL, so it was validated by a manual
+probe against netCDF-C 4.10.1.
 
 ## Files taken from the netCDF-C test corpus
 
-Two files are copied unchanged from the same pin:
+Four files are copied unchanged from the same pin. netCDF-C is distributed
+under the BSD 3-Clause licence; its notice travels with them in
+[`LICENSE-netcdf-c`](LICENSE-netcdf-c).
 
 | File | Purpose |
 |---|---|
+| `nctest_names-cdf1.nc` (source: `nctest/ref_nctest_classic.nc`) | names whose declared length runs into NUL bytes (`yy`, `pp`, `plugh`); netCDF-C reads them trimmed at the first NUL |
+| `nctest_names-cdf2.nc` (source: `nctest/ref_nctest_64bit_offset.nc`) | the same model in CDF-2 |
 | `null_byte_padding-cdf2.nc` (source: `ncdump/ref_null_byte_padding_test.nc`) | a CDF-2 file whose header padding is not NUL bytes; netCDF-C accepts it, so the reader must too |
 | `bad_cdf5_begin.nc` (source: `nc_test/bad_cdf5_begin.nc`) | a deliberately corrupt CDF-5 file that netCDF-C rejects; the reader must reject it as well |
+
+The copies are byte-identical to their sources (checked with `sha256sum` when
+they were added, 2026-11-14).
 
 Their `ncdump` output is in `ncdump/`; `bad_cdf5_begin.nc` has no dump because
 `ncdump` refuses it.
