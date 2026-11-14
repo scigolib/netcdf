@@ -9,8 +9,8 @@ are big-endian binary formats defined by the NetCDF Classic Format Specification
 an HDF5 file with NetCDF conventions on top, and this library uses
 [scigolib/hdf5](https://github.com/scigolib/hdf5) for that layer.
 
-Status: early development. `DetectFormat` is the only public function today; the API is not
-stable before v1.0.
+Status: early development. The classic formats are read and written through
+`DetectFormat`, `Open`/`NewReader` and `Create`; the API is not stable before v1.0.
 
 ## Quick Start
 

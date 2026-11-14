@@ -32,7 +32,7 @@ var (
 )
 
 // translate maps the format layer's error kinds to this package's public
-// sentinels, keeping the cause's detail (ADR-003). Errors this package creates
+// sentinels, keeping the cause's detail. Errors this package creates
 // itself pass through unchanged.
 func translate(err error) error {
 	if err == nil {

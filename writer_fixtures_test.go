@@ -3,7 +3,7 @@ package netcdf_test
 // Byte-for-byte parity between our writer and netCDF-C's ncgen: every model
 // of testdata/cdl is rebuilt through the public API and compared with the
 // committed fixture for every format the oracle could produce. A difference is
-// our defect or a choice recorded in ADR-002.
+// our defect or a deliberate, recorded deviation.
 
 import (
 	"bytes"
@@ -239,8 +239,9 @@ func TestCreateMatchesFixtures(t *testing.T) {
 	}
 }
 
-// TestCreateEmpty covers the model ncgen pads to 4096 bytes (ADR-002 §5):
-// the header must be identical, and our file ends at the header.
+// TestCreateEmpty covers the model ncgen pads to 4096 bytes. Our file ends at
+// the header instead — a deliberate deviation — and the header bytes must be
+// identical.
 func TestCreateEmpty(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "out.nc")
 	w, err := netcdf.Create(path, netcdf.NewSchema(netcdf.FormatClassic))
