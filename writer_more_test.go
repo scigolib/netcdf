@@ -3,6 +3,7 @@ package netcdf_test
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"path/filepath"
 	"reflect"
@@ -439,4 +440,42 @@ func readInto[T any](t *testing.T, v *netcdf.Variable, s []T, dst *[]T) []T {
 		t.Fatalf("read %q: %v", v.Name(), err)
 	}
 	return s
+}
+
+// TestDimensionLimits pins the per-format dimension limits to netCDF-C's
+// NC3_def_dim: X_INT_MAX-3 for CDF-1 and X_UINT_MAX-3 for CDF-2. A dimension
+// above them would produce a file the C library refuses to define.
+func TestDimensionLimits(t *testing.T) {
+	cases := []struct {
+		name   string
+		format netcdf.Format
+		ok     int64
+		bad    int64 // 0 means the format has no reachable upper limit
+	}{
+		{"cdf1", netcdf.FormatClassic, math.MaxInt32 - 3, math.MaxInt32 - 2},
+		{"cdf2", netcdf.FormatClassic64, math.MaxUint32 - 3, math.MaxUint32 - 2},
+		{"cdf5", netcdf.FormatClassic64Data, math.MaxInt64, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			schema := netcdf.NewSchema(c.format)
+			schema.AddDimension("x", c.ok)
+			w, err := netcdf.Create(filepath.Join(t.TempDir(), "ok.nc"), schema)
+			if err != nil {
+				t.Fatalf("Create with the largest accepted dimension %d: %v", c.ok, err)
+			}
+			if err := w.Close(); err != nil {
+				t.Fatalf("Close: %v", err)
+			}
+			if c.bad == 0 {
+				return
+			}
+			schema = netcdf.NewSchema(c.format)
+			schema.AddDimension("x", c.bad)
+			_, err = netcdf.Create(filepath.Join(t.TempDir(), "bad.nc"), schema)
+			if !errors.Is(err, netcdf.ErrInvalidSchema) {
+				t.Fatalf("Create with dimension %d: %v, want ErrInvalidSchema", c.bad, err)
+			}
+		})
+	}
 }

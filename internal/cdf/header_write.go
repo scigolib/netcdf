@@ -643,6 +643,21 @@ func (h *Header) Validate() error {
 	return h.validateVars()
 }
 
+// dimLimit is the largest dimension length netCDF-C accepts per format. Its
+// NC3_def_dim rejects a size above X_INT_MAX-3 for CDF-1 and X_UINT_MAX-3 for
+// CDF-2 ("the - 3 handles rounded-up size", libsrc/dim.c); a larger dimension
+// would produce a file the C library refuses to define. CDF-5 sizes are 64-bit
+// and the int64 API cannot reach the format's X_UINT64_MAX-3.
+func dimLimit(v Version) int64 {
+	if v == Version1 {
+		return math.MaxInt32 - 3
+	}
+	if v == Version2 {
+		return math.MaxUint32 - 3
+	}
+	return math.MaxInt64
+}
+
 // validateDims checks the dimension list, including the single-unlimited rule.
 func (h *Header) validateDims() error {
 	if len(h.Dims) > maxEntries {
@@ -661,9 +676,9 @@ func (h *Header) validateDims() error {
 		if d.Size < 0 {
 			return fmt.Errorf("cdf: dimension %q has length %d", d.Name, d.Size)
 		}
-		if h.Version != Version5 && d.Size > math.MaxUint32 {
-			return fmt.Errorf("cdf: dimension %q has length %d, above the %s size_t",
-				d.Name, d.Size, h.Version)
+		if limit := dimLimit(h.Version); d.Size > limit {
+			return fmt.Errorf("cdf: dimension %q has length %d, above the %s limit of %d",
+				d.Name, d.Size, h.Version, limit)
 		}
 		if d.Size == 0 {
 			unlimited++
@@ -805,6 +820,11 @@ func typeName(t Type) string {
 // valid UTF-8, no '/', the first character is [A-Za-z0-9_] or a multibyte
 // UTF-8 character, later characters are printable ASCII or UTF-8, no trailing
 // space, at most NC_MAX_NAME (256) bytes.
+//
+// Names are stored as given, in whatever UTF-8 form the caller wrote. Unlike
+// netCDF-C this package does not NFC-normalise them (libsrc/dim.c, var.c): a
+// decomposed name round-trips unchanged instead of being composed, which needs
+// a Unicode normalisation table the package does not carry.
 func CheckName(name string) error {
 	if name == "" {
 		return errors.New("cdf: empty name")
