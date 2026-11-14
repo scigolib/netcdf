@@ -33,7 +33,8 @@ case netcdf.FormatHDF5:
 go build ./...
 go test ./...
 go test -race ./...        # needs cgo: Linux, macOS, or WSL on Windows
-make ci                    # the gates CI runs: fmt, build, test, lint
+gofmt -l .                 # must print nothing
+golangci-lint run          # must report 0 issues
 ```
 
 ## Architecture
