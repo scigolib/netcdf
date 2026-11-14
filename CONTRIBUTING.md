@@ -35,7 +35,9 @@ The race detector needs cgo: `go test -race ./...` runs on Linux, macOS, or in W
    section or the `ncdump`/`nccopy` output it is checked against.
 3. Verify:
    ```bash
-   make ci
+   gofmt -l .      # must print nothing
+   go test ./...
+   golangci-lint run
    ```
 4. Open the pull request against `main`. The `Required checks` gate must be green, and every
    pull request needs one approving review from someone other than its author.
