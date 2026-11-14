@@ -9,8 +9,9 @@ Pure Go reader and writer for NetCDF files — classic CDF-1, CDF-2, CDF-5 and N
 no cgo and no C dependencies. It is part of the [scigolib](https://github.com/scigolib) ecosystem
 and builds NetCDF-4 on top of [scigolib/hdf5](https://github.com/scigolib/hdf5).
 
-**Status: early development.** The classic reader (CDF-1, CDF-2, CDF-5) reads headers, attributes,
-metadata and data. The writer and NetCDF-4 support are next. The API is not stable before v1.0.
+**Status: early development.** The classic formats (CDF-1, CDF-2, CDF-5) are read and written:
+headers, attributes, metadata and data, whole variables and hyperslabs. NetCDF-4 support is
+next. The API is not stable before v1.0.
 
 ## Install
 
@@ -67,13 +68,46 @@ netCDF type: `[]int8` for byte, `[]byte` for char and ubyte, `[]int16`, `[]uint1
 `[]uint32`, `[]float32`, `[]float64`, `[]int64`, `[]uint64`. A mismatched slice is reported with
 `ErrTypeMismatch`, never silently converted.
 
+## Writing a file
+
+```go
+schema := netcdf.NewSchema(netcdf.FormatClassic) // CDF-1; FormatClassic64 is CDF-2, FormatClassic64Data is CDF-5
+time := schema.AddDimension("time", 0)           // length 0 = unlimited
+x := schema.AddDimension("x", 3)
+temp := schema.AddVariable("temp", netcdf.TypeFloat, time, x)
+if err := temp.SetAttr("units", "K"); err != nil {
+	log.Fatal(err)
+}
+
+w, err := netcdf.Create("out.nc", schema)
+if err != nil {
+	log.Fatal(err)
+}
+v, _ := w.Variable("temp")
+// Two records of three values; writing past the current count appends and
+// fills the records in between with the fill value.
+if err := v.WriteSlice([]float32{1, 2, 3, 4, 5, 6}, []int64{0, 0}, []int64{2, 3}); err != nil {
+	log.Fatal(err)
+}
+if err := w.Close(); err != nil { // writes the record count; the file is consistent
+	log.Fatal(err)
+}
+```
+
+Attribute values are Go slices whose netCDF type is inferred (`string`/`[]byte` are char,
+`[]int8` byte, `[]int32` int, `[]float64` double, …); `SetAttrTyped` states the type explicitly
+for the ambiguous cases (ubyte vs char, uint vs int). `Create` validates the whole schema before
+touching the file; a schema error is reported before anything is written. The output is
+byte-identical to netCDF-C's `ncgen` for the same model and format (the fixtures in `testdata/`
+are the proof), and `ncdump` and `nccopy` read it.
+
 ## Formats
 
 | Format | Starts with | Read | Write |
 | ------ | ----------- | ---- | ----- |
-| CDF-1 (classic) | `CDF` + version 1 | yes | planned |
-| CDF-2 (64-bit offset) | `CDF` + version 2 | yes | planned |
-| CDF-5 (64-bit data) | `CDF` + version 5 | yes | planned |
+| CDF-1 (classic) | `CDF` + version 1 | yes | yes |
+| CDF-2 (64-bit offset) | `CDF` + version 2 | yes | yes |
+| CDF-5 (64-bit data) | `CDF` + version 5 | yes | yes |
 | NetCDF-4 (HDF5) | the eight-byte HDF5 signature | planned | planned |
 
 ## Why another NetCDF library

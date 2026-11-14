@@ -38,8 +38,10 @@ func (h *Header) WalkVara(v *Var, start, count []int64, fn func(off, n int64) er
 	return walkSlab(v, start, count, 0, v.Begin, fn)
 }
 
-// checkSelection validates the hyperslab against the variable's extent. It
-// reports an empty selection (a zero count) so no read is issued at all.
+// checkSelection validates every dimension of the hyperslab against the
+// variable's extent, then reports an empty selection (a zero count) so no read
+// is issued at all. A bad dimension after a zero count is still an error, as
+// in netCDF-C's NCedgeck; an empty selection is not a license to go unchecked.
 func (h *Header) checkSelection(v *Var, start, count []int64) (empty bool, err error) {
 	rank := len(v.Shape)
 	if len(start) != rank || len(count) != rank {
@@ -56,10 +58,39 @@ func (h *Header) checkSelection(v *Var, start, count []int64) (empty bool, err e
 				v.Name, i, start[i], count[i], extent)
 		}
 		if count[i] == 0 {
-			return true, nil
+			empty = true
 		}
 	}
-	return false, nil
+	return empty, nil
+}
+
+// CheckWriteSelection validates a hyperslab for writing: the inner dimensions
+// against the variable's shape, the record dimension only for overflow, since
+// a write may extend the record section. The caller extends first and then
+// walks with WalkVara, which revalidates against the new record count.
+func (h *Header) CheckWriteSelection(v *Var, start, count []int64) error {
+	rank := len(v.Shape)
+	if len(start) != rank || len(count) != rank {
+		return rangeFf("selection has %d and %d dimensions, variable %q has %d",
+			len(start), len(count), v.Name, rank)
+	}
+	for i := range v.Shape {
+		if start[i] < 0 || count[i] < 0 {
+			return rangeFf("variable %q dimension %d: start %d count %d",
+				v.Name, i, start[i], count[i])
+		}
+		if v.Record && i == 0 {
+			if _, err := addCheck(start[i], count[i]); err != nil {
+				return rangeFf("variable %q dimension %d: %s", v.Name, i, err.Error())
+			}
+			continue
+		}
+		if start[i] > v.Shape[i] || count[i] > v.Shape[i]-start[i] {
+			return rangeFf("variable %q dimension %d: start %d count %d, extent %d",
+				v.Name, i, start[i], count[i], v.Shape[i])
+		}
+	}
+	return nil
 }
 
 // contiguousFrom returns the first dimension of the selection [from, rank)

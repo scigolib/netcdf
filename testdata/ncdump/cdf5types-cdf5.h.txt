@@ -1,0 +1,10 @@
+netcdf cdf5types-cdf5 {
+dimensions:
+	n = 3 ;
+variables:
+	ubyte ub(n) ;
+	ushort us(n) ;
+	uint ui(n) ;
+	int64 i64(n) ;
+	uint64 u64(n) ;
+}

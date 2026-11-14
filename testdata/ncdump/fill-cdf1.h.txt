@@ -1,0 +1,14 @@
+netcdf fill-cdf1 {
+dimensions:
+	n = 3 ;
+variables:
+	byte b(n) ;
+	char c(n) ;
+	short s(n) ;
+	int i(n) ;
+	float f(n) ;
+	double d(n) ;
+
+// global attributes:
+		:note = "unwritten variables keep their fill values" ;
+}
