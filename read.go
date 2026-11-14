@@ -1,6 +1,12 @@
 package netcdf
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"io"
+
+	"github.com/scigolib/netcdf/internal/cdf"
+)
 
 // readChunkElems caps how many values one read decodes at a time: 16384
 // elements, at most 128 KiB of scratch space whatever the type.
@@ -14,6 +20,9 @@ func readRuns(v *Variable, c codec, dst any, expect int64, start, count []int64)
 	scratch := make([]byte, readChunkElems*elem)
 	base := int64(0)
 	err := v.file.h.WalkVara(v.v, start, count, func(off, n int64) error {
+		// A file shorter than its header says is corruption here. netCDF-C
+		// zero-fills the short part of a read (libsrc/posixio.c), which hides a
+		// truncated file; reporting it is the deliberate choice.
 		if off < 0 || off > v.file.size || n > (v.file.size-off)/elem {
 			return fmt.Errorf("%w: variable %q: %d values at offset %d do not fit in the %d-byte file",
 				ErrCorrupt, v.v.Name, n, off, v.file.size)
@@ -24,9 +33,16 @@ func readRuns(v *Variable, c codec, dst any, expect int64, start, count []int64)
 				k = readChunkElems
 			}
 			buf := scratch[:k*elem]
-			if _, err := v.file.r.ReadAt(buf, off+done*elem); err != nil {
-				return fmt.Errorf("%w: variable %q: reading %d bytes at offset %d: %w",
-					ErrCorrupt, v.v.Name, len(buf), off+done*elem, err)
+			at := off + done*elem
+			if err := cdf.ReadAtFull(v.file.r, buf, at); err != nil {
+				if errors.Is(err, io.ErrUnexpectedEOF) {
+					return fmt.Errorf("%w: variable %q: short read of %d bytes at offset %d",
+						ErrCorrupt, v.v.Name, len(buf), at)
+				}
+				// Not corruption: pass an I/O failure through so the caller can
+				// match it with errors.Is (a timeout, a closed reader).
+				return fmt.Errorf("netcdf: variable %q: reading %d bytes at offset %d: %w",
+					v.v.Name, len(buf), at, err)
 			}
 			if !c.decode(dst, base+done, buf) {
 				return v.mismatch(dst)

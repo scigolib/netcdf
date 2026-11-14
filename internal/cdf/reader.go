@@ -1,6 +1,8 @@
 package cdf
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -33,6 +35,22 @@ func (c *cursor) corrupt(format string, args ...any) error {
 	return corruptf("at offset %d: %s", c.pos, fmt.Sprintf(format, args...))
 }
 
+// ReadAtFull reads len(p) bytes at off. io.ReaderAt permits a complete read to
+// report io.EOF when it ends exactly at the end of the input; that is a
+// success. A short read is io.ErrUnexpectedEOF, a truncated input; any other
+// error (a timeout, a closed reader) is returned unchanged, so a caller can
+// tell corruption from an I/O failure.
+func ReadAtFull(r io.ReaderAt, p []byte, off int64) error {
+	n, err := r.ReadAt(p, off)
+	if n == len(p) && (err == nil || errors.Is(err, io.EOF)) {
+		return nil
+	}
+	if err == nil || errors.Is(err, io.EOF) {
+		return io.ErrUnexpectedEOF
+	}
+	return err
+}
+
 // window returns the next n bytes of the file without consuming them.
 func (c *cursor) window(n int) ([]byte, error) {
 	if c.pos >= c.base && c.pos+int64(n) <= c.base+int64(c.n) {
@@ -46,8 +64,11 @@ func (c *cursor) window(n int) ([]byte, error) {
 	if want > c.remaining() {
 		want = c.remaining()
 	}
-	if _, err := c.r.ReadAt(c.buf[:want], c.pos); err != nil {
-		return nil, c.corrupt("reading %d bytes: %v", want, err)
+	if err := ReadAtFull(c.r, c.buf[:want], c.pos); err != nil {
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			return nil, c.corrupt("short read of %d bytes at offset %d", want, c.pos)
+		}
+		return nil, fmt.Errorf("cdf: reading %d bytes at offset %d: %w", want, c.pos, err)
 	}
 	c.base = c.pos
 	c.n = int(want)
@@ -163,9 +184,6 @@ func (c *cursor) name(v Version) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if n < 0 {
-		return "", c.corrupt("negative name length %d", n)
-	}
 	if n > maxNameLen {
 		return "", c.corrupt("name length %d exceeds the %d-byte limit", n, int64(maxNameLen))
 	}
@@ -175,6 +193,13 @@ func (c *cursor) name(v Version) (string, error) {
 	}
 	if err := c.skip(pad4(n)); err != nil {
 		return "", err
+	}
+	// A name ends at its first NUL. netCDF-C stores names this way and stops at
+	// the first NUL when it reads them; two of its reference files carry names
+	// whose declared length runs past the name into NUL bytes, and ncdump
+	// prints them trimmed ("yy", "pp", "plugh"). Lookup must see the same name.
+	if i := bytes.IndexByte(b, 0); i >= 0 {
+		b = b[:i]
 	}
 	return string(b), nil
 }
