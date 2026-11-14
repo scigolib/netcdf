@@ -1,0 +1,11 @@
+netcdf layout-cdf1 {
+dimensions:
+	time = UNLIMITED ; // (5 currently)
+	x = 3 ;
+	y = 2 ;
+	z = 4 ;
+variables:
+	float cube(z, y, x) ;
+	byte b(time) ;
+	int temp(time, x) ;
+}

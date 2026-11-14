@@ -9,8 +9,8 @@ Pure Go reader and writer for NetCDF files — classic CDF-1, CDF-2, CDF-5 and N
 no cgo and no C dependencies. It is part of the [scigolib](https://github.com/scigolib) ecosystem
 and builds NetCDF-4 on top of [scigolib/hdf5](https://github.com/scigolib/hdf5).
 
-**Status: early development.** Format detection is available today; the classic reader is the
-next step. The API is not stable before v1.0.
+**Status: early development.** The classic reader (CDF-1, CDF-2, CDF-5) reads headers, attributes,
+metadata and data. The writer and NetCDF-4 support are next. The API is not stable before v1.0.
 
 ## Install
 
@@ -25,36 +25,55 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"os"
+	"log"
 
 	"github.com/scigolib/netcdf"
 )
 
 func main() {
-	f, err := os.Open("data.nc")
+	f, err := netcdf.Open("data.nc")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	defer f.Close()
 
-	header := make([]byte, 8)
-	if _, err := io.ReadFull(f, header); err != nil {
-		panic(err)
+	// Dimensions, attributes and variables are parsed when the file opens;
+	// data is read on demand.
+	for _, v := range f.Variables() {
+		fmt.Println(v.Name(), v.Type(), v.Shape())
 	}
 
-	// Prints CDF-1, CDF-2, CDF-5 or NetCDF-4.
-	fmt.Println(netcdf.DetectFormat(header))
+	temp, ok := f.Variable("temp")
+	if !ok {
+		log.Fatal("no variable temp")
+	}
+	values := make([]float64, temp.Len())
+	if err := temp.Read(&values); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(values)
+
+	// A hyperslab: the first two records of the first column.
+	part := make([]float64, 2)
+	if err := temp.ReadSlice(&part, []int64{0, 0}, []int64{2, 1}); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(part)
 }
 ```
+
+`Read` and `ReadSlice` take a pointer to a slice whose element type matches the variable's
+netCDF type: `[]int8` for byte, `[]byte` for char and ubyte, `[]int16`, `[]uint16`, `[]int32`,
+`[]uint32`, `[]float32`, `[]float64`, `[]int64`, `[]uint64`. A mismatched slice is reported with
+`ErrTypeMismatch`, never silently converted.
 
 ## Formats
 
 | Format | Starts with | Read | Write |
 | ------ | ----------- | ---- | ----- |
-| CDF-1 (classic) | `CDF` + version 1 | planned | planned |
-| CDF-2 (64-bit offset) | `CDF` + version 2 | planned | planned |
-| CDF-5 (64-bit data) | `CDF` + version 5 | planned | planned |
+| CDF-1 (classic) | `CDF` + version 1 | yes | planned |
+| CDF-2 (64-bit offset) | `CDF` + version 2 | yes | planned |
+| CDF-5 (64-bit data) | `CDF` + version 5 | yes | planned |
 | NetCDF-4 (HDF5) | the eight-byte HDF5 signature | planned | planned |
 
 ## Why another NetCDF library

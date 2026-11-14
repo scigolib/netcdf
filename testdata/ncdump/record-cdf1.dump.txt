@@ -1,0 +1,19 @@
+netcdf record-cdf1 {
+dimensions:
+	time = UNLIMITED ; // (3 currently)
+	x = 2 ;
+variables:
+	double fixed(x) ;
+	int temp(time, x) ;
+	short flag(time) ;
+data:
+
+ fixed = 1.5, 2.5 ;
+
+ temp =
+  10, 11,
+  20, 21,
+  30, 31 ;
+
+ flag = 1, 0, -1 ;
+}

@@ -11,6 +11,8 @@
 // order, whatever the host order. The package spells that out at each decode
 // site and never assumes the native order.
 //
-// Status: early development. Only DetectFormat is available today; the reader
-// and writer are being built, and the API is not stable before v1.0.
+// Status: early development. The classic formats are readable — header,
+// dimensions, attributes, variables and data (whole variables and hyperslabs);
+// the writer and NetCDF-4 support are being built, and the API is not stable
+// before v1.0.
 package netcdf

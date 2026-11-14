@@ -1,0 +1,16 @@
+netcdf simple-cdf5 {
+dimensions:
+	x = 4 ;
+	y = 3 ;
+variables:
+	float a(x, y) ;
+		a:units = "m/s" ;
+		a:valid_max = 100. ;
+	int b(y) ;
+		b:scale = 2 ;
+
+// global attributes:
+		:title = "simple fixture" ;
+		:version = 7 ;
+		:pi = 3.14159 ;
+}
