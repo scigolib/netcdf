@@ -1,0 +1,20 @@
+# Keeps GitHub Actions current, weekly and grouped (user decision 2026-10-17). Workflows pin
+# each action by commit SHA with a `# vX.Y.Z` comment (versions.md §2); Dependabot updates the
+# SHA and the comment together. Local actions (./.github/actions/*) pin theirs the same way.
+# Go module updates of the main module are handled deliberately (go list -m -u all before
+# releases); security updates for modules come from Dependabot security updates (repo setting).
+# `labels:` uses our core label (references/labels.md). Without it Dependabot creates its own
+# bare `dependencies` and `github_actions` labels in every repo (seen in all gogpu repos,
+# 2026-11-11). The label must exist first (assets/github/labels.tsv), or Dependabot skips it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: ["type: dependencies"]
+    commit-message:
+      prefix: ci

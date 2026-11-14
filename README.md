@@ -1,0 +1,78 @@
+# netcdf
+
+[![CI](https://github.com/scigolib/netcdf/actions/workflows/ci.yml/badge.svg)](https://github.com/scigolib/netcdf/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/scigolib/netcdf.svg)](https://pkg.go.dev/github.com/scigolib/netcdf)
+[![codecov](https://codecov.io/gh/scigolib/netcdf/branch/main/graph/badge.svg)](https://codecov.io/gh/scigolib/netcdf)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+Pure Go reader and writer for NetCDF files — classic CDF-1, CDF-2, CDF-5 and NetCDF-4 — with
+no cgo and no C dependencies. It is part of the [scigolib](https://github.com/scigolib) ecosystem
+and builds NetCDF-4 on top of [scigolib/hdf5](https://github.com/scigolib/hdf5).
+
+**Status: early development.** Format detection is available today; the classic reader is the
+next step. The API is not stable before v1.0.
+
+## Install
+
+```bash
+go get github.com/scigolib/netcdf
+```
+
+## Quick start
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"os"
+
+	"github.com/scigolib/netcdf"
+)
+
+func main() {
+	f, err := os.Open("data.nc")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	header := make([]byte, 8)
+	if _, err := io.ReadFull(f, header); err != nil {
+		panic(err)
+	}
+
+	// Prints CDF-1, CDF-2, CDF-5 or NetCDF-4.
+	fmt.Println(netcdf.DetectFormat(header))
+}
+```
+
+## Formats
+
+| Format | Starts with | Read | Write |
+| ------ | ----------- | ---- | ----- |
+| CDF-1 (classic) | `CDF` + version 1 | planned | planned |
+| CDF-2 (64-bit offset) | `CDF` + version 2 | planned | planned |
+| CDF-5 (64-bit data) | `CDF` + version 5 | planned | planned |
+| NetCDF-4 (HDF5) | the eight-byte HDF5 signature | planned | planned |
+
+## Why another NetCDF library
+
+- **Pure Go, zero cgo.** Cross-compiles to every platform Go supports, no C toolchain.
+- **One engine for both worlds.** The HDF5 layer behind NetCDF-4 is
+  [scigolib/hdf5](https://github.com/scigolib/hdf5), ours; classic and NetCDF-4 files share one
+  codebase and one test matrix.
+- **Checked against the C implementation.** Files we write are read back by `ncdump` and
+  `nccopy`; files they write are read by us.
+
+## Documentation
+
+- [NetCDF file format specifications](https://docs.unidata.ucar.edu/netcdf-c/current/file_format_specifications.html)
+- [netCDF-C](https://github.com/Unidata/netcdf-c) — the reference implementation
+- [scigolib/hdf5](https://github.com/scigolib/hdf5) — the HDF5 engine behind NetCDF-4
+- [AGENTS.md](AGENTS.md) — instructions for AI agents working with the library
+
+## License
+
+MIT — see [LICENSE](LICENSE).

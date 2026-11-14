@@ -1,0 +1,52 @@
+# Private — never committed (global rule; never `git add -f` these)
+.claude/
+.pm/
+.reference.md
+docs/dev/
+tmp/
+reference/
+
+# AI/IDE tooling state
+.gode/
+.goda/
+.goco/
+.mcp.json
+.idea/
+.vscode/
+*.swp
+*~
+
+# Build and test artifacts (an extensionless cross-built binary of a main package: a root-anchored /<name> line per
+# repo, or build it with -o dist/<name>)
+*.exe
+*.exe~
+*.wasm
+*.dll
+*.so
+*.dylib
+*.test
+/*.out
+*.prof
+coverage.out
+coverage.txt
+coverage.html
+*.log
+*.bak
+*.orig
+/bin/
+/dist/
+/build/
+
+# Go workspace (local overrides only)
+go.work
+go.work.sum
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,217 @@
+name: CI
+
+# GitHub Flow: main is always releasable; work happens in short-lived branches via PRs.
+# Go: oldstable + stable (the two supported releases), plus the go.mod minimum for libraries.
+# The ruleset requires ONE check, the "Required checks" gate at the end: jobs and the matrix can change
+# without touching the ruleset. A new required job goes into the gate's `needs`.
+# Tool versions are pinned and bumped on purpose (SKILL.md § Versions): an unpinned tool
+# breaks every PR at once when its new release lands.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # Never download a newer Go behind our back: the job must run the Go it asked for, or
+  # the minimum and oldstable tests prove nothing.
+  GOTOOLCHAIN: local
+  # golangci-lint: exact version (its docs: "don't start to fail all builds at the same time").
+  # Bump in its own PR that fixes the new findings, and with each new Go minor: an older
+  # linter may not understand the new Go. The sha256 is of golangci-lint-<ver>-linux-amd64.tar.gz:
+  # gh api repos/golangci/golangci-lint/releases/tags/v<ver> --jq '.assets[] | select(.name|endswith("linux-amd64.tar.gz")) | .digest'
+  GOLANGCI_LINT_VERSION: 2.15.0
+  GOLANGCI_LINT_SHA256: 9b7fe6a6bf6334b98decf8d86b11415ea7889afdabdd1959fdce23af2a9ebcea
+
+jobs:
+  test:
+    name: Test - ${{ matrix.os }} - Go ${{ matrix.go-version }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write # Codecov OIDC — only this job needs it
+    strategy:
+      # Each OS's -race result is separate evidence: with the default, one OS failing cancels
+      # the others and their results never show (gogpu/ui#247, run 42469289570, 2026-11-08).
+      # Never continue-on-error on a race step either: ui's racedetector step had it and hid a
+      # real race that native -race found on its first run.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: [oldstable, stable]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+      - name: Verify modules
+        run: go mod verify
+      - name: Vet
+        if: matrix.os == 'ubuntu-latest'
+        run: go vet ./...
+      - name: Test (race)
+        shell: bash
+        run: go test -race -count=1 -coverprofile=coverage.txt -covermode=atomic ./...
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == 'stable'
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        continue-on-error: true
+        with:
+          use_oidc: true
+          files: ./coverage.txt
+
+  # Libraries: the go.mod `go` line is a promise to every importer, and this machine never
+  # tests it (it builds with GOTOOLCHAIN >= go1.27.4). This job tests exactly that line.
+  # Programs (CLI, service): delete this job and its entry in the gate's `needs`.
+  test-minimum:
+    name: Test - ubuntu-latest - Go minimum
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: gomod
+        run: echo "go=$(awk '$1 == "go" { print $2; exit }' go.mod)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ steps.gomod.outputs.go }}
+          cache: true
+      - run: go version
+      - run: go test -count=1 ./...
+
+  # Remove if the module cannot support 32-bit; keep for libraries.
+  build-386:
+    name: Build - linux 386
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: true
+      - run: GOARCH=386 go build ./...
+      - run: GOARCH=386 go test -count=1 ./...
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: true
+      # Pinned, sha256-checked binary from the Actions cache; the release is downloaded
+      # only on a cache miss (.github/actions/setup-golangci-lint/action.yml says why).
+      - uses: ./.github/actions/setup-golangci-lint
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          sha256: ${{ env.GOLANGCI_LINT_SHA256 }}
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          install-mode: none
+          args: --timeout=5m
+
+  # Lint the files of the other GOOS too. The job above type-checks only linux files, so
+  # code under darwin or windows build tags is never linted: gogpu PR #519 was CI-green and
+  # `GOOS=darwin golangci-lint run ./...` then found 8 issues (2026-11-08). With GOOS/GOARCH
+  # in the environment and CGO off, go/packages loads exactly that target's files, and a
+  # target that fails to type-check exits non-zero, never "0 issues". No macOS or Windows
+  # runner is needed. One GOARCH per GOOS unless the repo has arch-specific files. Keep
+  # GOOS-named tags out of .golangci.yml `build-tags`: they don't switch the target (goffi).
+  # A repo with `js && wasm` files adds a `GOOS=js GOARCH=wasm go build ./...` step instead of
+  # linting js (lint would type-check tests that import native-only packages).
+  lint-targets:
+    name: Lint - ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: windows, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: true
+      - uses: ./.github/actions/setup-golangci-lint
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          sha256: ${{ env.GOLANGCI_LINT_SHA256 }}
+      # GOOS/GOARCH only on the lint step: the binary above stays linux/amd64.
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        with:
+          install-mode: none
+          args: --timeout=5m
+
+  formatting:
+    name: Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # stable, never the go.mod minimum: gofmt's output changes between Go releases, and
+          # this machine formats with >= go1.27.4 (global §9). gg's formatting job ran the 1.25
+          # minimum; Go 1.27's gofmt reformatted curve.go and CI's 1.25 never asked (2026-11-08).
+          go-version: stable
+          cache: true
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Not gofmt-ed:"; echo "$unformatted"; exit 1
+          fi
+      - name: go mod tidy
+        run: |
+          go mod tidy
+          # tools/ is a separate module (SKILL.md § Versions); tidy it too when present.
+          if [ -f tools/go.mod ]; then go -C tools mod tidy; fi
+          if [ -n "$(git status --porcelain -- go.mod go.sum tools/go.mod tools/go.sum)" ]; then
+            echo "go mod tidy changed go.mod/go.sum (a new untracked go.sum counts):"
+            git status --porcelain -- go.mod go.sum tools/go.mod tools/go.sum
+            git diff -- go.mod go.sum tools/go.mod tools/go.sum; exit 1
+          fi
+
+  # Informational: not in the gate, so a new CVE in a dependency does not block unrelated
+  # PRs. A red run is still treated as a task (fix or report). It stays on the latest
+  # govulncheck on purpose: the vulnerability data must be current.
+  # continue-on-error at job level: a finding with no fixed version yet (govulncheck exit 3)
+  # still shows this job red in every PR, but the run concludes success, so the README badge
+  # stays green. Releases are protected by the blocking govulncheck in release.yml. A finding
+  # that has a fixed version is fixed by updating, never left to this.
+  vulncheck:
+    name: Vulncheck
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
+        with:
+          go-version-input: stable
+
+  # The one required check. `if: always()` and the explicit result check matter: a job that
+  # is skipped (for example because a job it needs failed) counts as passed for a required
+  # check, so a gate without them can let a red PR through.
+  required:
+    name: Required checks
+    if: always()
+    needs: [test, test-minimum, build-386, lint, lint-targets, formatting]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every required job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" != success ]; then echo "a required job ended with: $r"; exit 1; fi
+          done

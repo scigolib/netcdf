@@ -1,0 +1,13 @@
+# netcdf — SciGoLib
+
+> NetCDF files in pure Go: classic CDF-1/2/5 and NetCDF-4, no cgo.
+
+## Docs
+
+- [API Reference](https://pkg.go.dev/github.com/scigolib/netcdf)
+- [AGENTS.md](https://github.com/scigolib/netcdf/blob/main/AGENTS.md): AI agent instructions
+- [NetCDF Classic format specifications](https://docs.unidata.ucar.edu/netcdf-c/current/file_format_specifications.html)
+
+## Organization
+
+- [SciGoLib](https://github.com/scigolib)
