@@ -6,7 +6,7 @@ package netcdf
 // decides the header's field widths and which types are legal.
 //
 // A Schema is a builder, not a live object: validate happens once, in Create,
-// so a schema cannot produce an invalid header halfway (ADR-002).
+// so a schema cannot produce an invalid header halfway.
 
 import (
 	"errors"
@@ -139,6 +139,9 @@ func (v *SchemaVar) SetAttrTyped(name string, typ Type, values any) error {
 // Create writes a new file at path from schema. It validates the schema, lays
 // the header out exactly as netCDF-C's NC_begins does, writes the header and
 // fills every fixed-size variable with its fill value.
+//
+// Create truncates an existing file at path, like os.Create and like netCDF-C
+// without NC_NOCLOBBER; there is no option to refuse an existing file yet.
 //
 // A schema error is reported before the file is touched; the returned Writer
 // is usable until Close.

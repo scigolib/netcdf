@@ -99,7 +99,8 @@ Attribute values are Go slices whose netCDF type is inferred (`string`/`[]byte` 
 for the ambiguous cases (ubyte vs char, uint vs int). `Create` validates the whole schema before
 touching the file; a schema error is reported before anything is written. The output is
 byte-identical to netCDF-C's `ncgen` for the same model and format (the fixtures in `testdata/`
-are the proof), and `ncdump` and `nccopy` read it.
+are the proof). `ncdump` and `nccopy` read it too — checked by hand against netCDF-C 4.10.1 on
+2026-11-14; automated differential runs against the C tools are planned.
 
 ## Formats
 
@@ -113,11 +114,10 @@ are the proof), and `ncdump` and `nccopy` read it.
 ## Why another NetCDF library
 
 - **Pure Go, zero cgo.** Cross-compiles to every platform Go supports, no C toolchain.
-- **One engine for both worlds.** The HDF5 layer behind NetCDF-4 is
-  [scigolib/hdf5](https://github.com/scigolib/hdf5), ours; classic and NetCDF-4 files share one
-  codebase and one test matrix.
-- **Checked against the C implementation.** Files we write are read back by `ncdump` and
-  `nccopy`; files they write are read by us.
+- **One ecosystem.** NetCDF-4 will sit on [scigolib/hdf5](https://github.com/scigolib/hdf5),
+  our own HDF5 engine; the classic formats implemented today need no other library.
+- **Checked against the C implementation.** We read files `ncdump` writes, and files we write
+  have been read back by `ncdump` and `nccopy` by hand (netCDF-C 4.10.1, 2026-11-14).
 
 ## Documentation
 

@@ -24,9 +24,9 @@ func TestTypeValuesMatchFormatLayer(t *testing.T) {
 	}
 }
 
-// TestErrorModel keeps the public sentinels independent of the format layer
-// (ADR-003): go doc must never show an internal path, and translation must
-// classify without leaking the internal sentinel into the public chain.
+// TestErrorModel keeps the public sentinels independent of the format layer:
+// go doc must never show an internal path, and translation must classify
+// without leaking the internal sentinel into the public chain.
 func TestErrorModel(t *testing.T) {
 	for _, pair := range []struct {
 		name     string
