@@ -9,18 +9,11 @@ package netcdf
 // so a schema cannot produce an invalid header halfway.
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
 	"github.com/scigolib/netcdf/internal/cdf"
 )
-
-// ErrInvalidSchema reports a schema Create cannot write: an unknown format, an
-// illegal or duplicated name, a type the format does not have, a variable whose
-// dimensions are not the schema's, more than one unlimited dimension, an
-// invalid _FillValue, or a layout the format cannot address.
-var ErrInvalidSchema = errors.New("invalid netCDF schema")
 
 // Schema collects the definitions of one file to create.
 type Schema struct {
@@ -42,7 +35,9 @@ func NewSchema(format Format) *Schema {
 func (s *Schema) Format() Format { return s.format }
 
 // SchemaDim is one dimension of a schema. A length of zero marks the unlimited
-// (record) dimension; at most one dimension may be unlimited.
+// (record) dimension. The classic formats allow at most one, and it must be the
+// first dimension of every variable that uses it; Create enforces that rule per
+// format, the enhanced model will not.
 type SchemaDim struct {
 	name   string
 	length int64
@@ -81,8 +76,16 @@ type SchemaVar struct {
 
 // AddVariable adds a variable over the given dimensions. The dimensions must
 // be handles this schema returned (Create reports a foreign one); the first
-// dimension may be the unlimited one.
+// dimension may be the unlimited one. A type the classic formats cannot hold
+// (TypeString, user-type ids) is reported by Create as ErrInvalidSchema.
 func (s *Schema) AddVariable(name string, typ Type, dims ...*SchemaDim) *SchemaVar {
+	if _, ok := codecFor(typ); !ok {
+		err := fmt.Errorf("%w: variable %q: type %s is not supported by the classic formats",
+			ErrInvalidSchema, name, typ)
+		// AddVariable has no error to return; the schema records the first error
+		// and Create reports it.
+		_ = s.fail(err)
+	}
 	v := &SchemaVar{schema: s, name: name, typ: typ, dims: append([]*SchemaDim(nil), dims...)}
 	s.vars = append(s.vars, v)
 	return v
@@ -264,7 +267,7 @@ func encodeAttr(typ Type, values any) ([]byte, error) {
 	}
 	c, ok := codecFor(typ)
 	if !ok {
-		return nil, fmt.Errorf("%w: attribute type tag %d", ErrInvalidSchema, uint8(typ))
+		return nil, fmt.Errorf("%w: attribute type tag %d", ErrInvalidSchema, int(typ))
 	}
 	n, ok := c.sliceLen(values)
 	if !ok {
@@ -315,7 +318,11 @@ func (s *Schema) header() (*cdf.Header, error) {
 		h.Dims = append(h.Dims, cdf.Dim{Name: d.name, Size: d.length})
 		dimIndex[d] = int64(i)
 	}
-	h.Attrs = convertAttrs(s.attrs)
+	attrs, err := convertAttrs(s.attrs)
+	if err != nil {
+		return nil, err
+	}
+	h.Attrs = attrs
 	for _, sv := range s.vars {
 		ids := make([]int64, len(sv.dims))
 		for j, d := range sv.dims {
@@ -326,25 +333,46 @@ func (s *Schema) header() (*cdf.Header, error) {
 			}
 			ids[j] = id
 		}
+		typ, err := cdfType(sv.typ)
+		if err != nil {
+			return nil, err
+		}
+		varAttrs, err := convertAttrs(sv.attrs)
+		if err != nil {
+			return nil, err
+		}
 		h.Vars = append(h.Vars, cdf.Var{
 			Name:   sv.name,
 			DimIDs: ids,
-			Attrs:  convertAttrs(sv.attrs),
-			Type:   cdf.Type(sv.typ),
+			Attrs:  varAttrs,
+			Type:   typ,
 		})
 	}
 	return h, nil
 }
 
-func convertAttrs(as []*Attribute) []cdf.Attr {
+// cdfType converts a public Type to the format layer's byte tag. Only the
+// classic tags reach it: AddVariable and the attribute encoder reject the rest.
+func cdfType(t Type) (cdf.Type, error) {
+	if t < TypeByte || t > TypeUInt64 {
+		return 0, fmt.Errorf("%w: type %s", ErrInvalidSchema, t)
+	}
+	return cdf.Type(t), nil
+}
+
+func convertAttrs(as []*Attribute) ([]cdf.Attr, error) {
 	if len(as) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make([]cdf.Attr, len(as))
 	for i, a := range as {
-		out[i] = cdf.Attr{Name: a.name, Type: cdf.Type(a.typ), Data: a.data}
+		typ, err := cdfType(a.typ)
+		if err != nil {
+			return nil, fmt.Errorf("attribute %q: %w", a.name, err)
+		}
+		out[i] = cdf.Attr{Name: a.name, Type: typ, Data: a.data}
 	}
-	return out
+	return out, nil
 }
 
 // fillFunc resolves each variable's fill bytes: its _FillValue attribute when

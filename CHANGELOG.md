@@ -26,11 +26,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   slabs past the current record count; `Close` writes the final record count. `_FillValue`
   overrides the type's default. Output is byte-identical to `ncgen` for every model and format
   the classic-only oracle can produce, and `ncdump`/`nccopy -k 1|2|5` read it.
+- Typed data access: `Variable.Read[T]`, `Variable.ReadSlice[T]`, `VarWriter.Write[T]` and
+  `VarWriter.WriteSlice[T]` — the element type is inferred from the argument and checked at
+  compile time, and the variable's type is checked at run time (`ErrTypeMismatch`). The
+  dynamic pattern — a type switch over `Variable.Type`, one typed call per arm — is
+  documented with an example.
 
 ### Changed
 
 - The minimum Go version is now 1.27. The floor follows the security-support window (Go 1.26
   and 1.27 today) and matches scigolib/hdf5, the foundation NetCDF-4 builds on. Go 1.27 also
-  enables generic methods, which let one type-safe method replace a family of per-type
-  methods; this library keeps its typed helpers as generic functions and treats generic
-  methods as an additive option, not an adopted API.
+  enables generic methods; this library adopts them only where they replace a real family —
+  the typed data-path methods replace the former `any` ones.
+- `Type` is now `int` (was `uint8`), with `TypeString` reserved for the enhanced model.
+
+### Removed
+
+- Pre-v1 API change: `Variable.Read`, `Variable.ReadSlice`, `VarWriter.Write` and
+  `VarWriter.WriteSlice` in their `any` form — replaced by the typed methods above; and
+  `Variable.Record`, `VarWriter.Record`, `File.NumRecs` and `Writer.NumRecs` — the shape is
+  per dimension now (`Dimension.Len` and `Dimension.Unlimited`).

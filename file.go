@@ -154,11 +154,6 @@ func (f *File) Close() error {
 // Format returns the file's format.
 func (f *File) Format() Format { return f.format }
 
-// NumRecs returns the number of records, the current length of the unlimited
-// dimension. It is the count stored in the header; a file without record
-// variables normally stores zero.
-func (f *File) NumRecs() int64 { return f.h.NumRecs }
-
 // Dimensions returns the file's dimensions in definition order.
 func (f *File) Dimensions() []*Dimension {
 	return append([]*Dimension(nil), f.dims...)

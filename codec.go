@@ -105,6 +105,9 @@ func codecFor(t Type) (codec, bool) {
 		return simpleCodec(8, int64Value, putInt64), true
 	case TypeUInt64:
 		return simpleCodec(8, uint64Value, putUint64), true
+	case TypeString:
+		// Reserved for the enhanced model; the classic formats cannot hold it.
+		return codec{}, false
 	}
 	return codec{}, false
 }

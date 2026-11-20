@@ -29,6 +29,12 @@ var (
 
 	// ErrClosed reports use of a File after Close.
 	ErrClosed = errors.New("netCDF file is closed")
+
+	// ErrInvalidSchema reports a schema Create cannot write: an unknown format,
+	// an illegal or duplicated name, a type the format does not have, a
+	// variable whose dimensions are not the schema's, more than one unlimited
+	// dimension, an invalid _FillValue, or a layout the format cannot address.
+	ErrInvalidSchema = errors.New("invalid netCDF schema")
 )
 
 // translate maps the format layer's error kinds to this package's public

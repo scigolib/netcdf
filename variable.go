@@ -10,9 +10,11 @@ import (
 
 // Variable is one variable of a NetCDF file: its metadata and its data.
 //
-// Read and ReadSlice take a pointer to a slice whose element type matches the
-// variable's netCDF type: []int8 for byte, []byte for char and ubyte, []int16,
-// []uint16, []int32, []uint32, []float32, []float64, []int64 and []uint64.
+// Read and ReadSlice are generic over the element type, which is inferred from
+// the destination slice: []int8 for byte, []byte for char and ubyte, []int16,
+// []uint16, []int32, []uint32, []float32, []float64, []int64 and []uint64. The
+// element type is checked at compile time; the variable's type is checked at
+// run time (ErrTypeMismatch), because a file's type is discovered by opening it.
 type Variable struct {
 	file       *File
 	v          *cdf.Var
@@ -93,16 +95,14 @@ func (v *Variable) Attribute(name string) (*Attribute, bool) {
 	return a, ok
 }
 
-// Record reports whether the variable's first dimension is the unlimited one.
-func (v *Variable) Record() bool { return v.v.Record }
-
 // Len returns the number of values the variable holds in the current file.
 func (v *Variable) Len() int64 { return v.length }
 
 // Read reads the whole variable into dst, which must hold exactly Len values
-// of the matching Go element type.
-func (v *Variable) Read(dst any) error {
-	return v.ReadSlice(dst, make([]int64, len(v.shape)), v.Shape())
+// of the matching Go element type. The element type is inferred from dst and
+// checked against the variable's type at run time.
+func (v *Variable) Read[T any](dst *[]T) error {
+	return v.read(dst, make([]int64, len(v.shape)), v.Shape())
 }
 
 // ReadSlice reads a hyperslab into dst. start and count hold one value per
@@ -113,7 +113,14 @@ func (v *Variable) Read(dst any) error {
 // matches the variable's netCDF type. A selection outside the shape or a dst
 // of the wrong length yields ErrOutOfRange; a slice of the wrong element type
 // yields ErrTypeMismatch; data beyond the end of the file yields ErrCorrupt.
-func (v *Variable) ReadSlice(dst any, start, count []int64) error {
+func (v *Variable) ReadSlice[T any](dst *[]T, start, count []int64) error {
+	return v.read(dst, start, count)
+}
+
+// read is the shared erased path behind the typed methods: dst is a *[]T of
+// one of the element types codecFor maps, checked against the variable's type
+// here. The box lives for one call, never per element.
+func (v *Variable) read(dst any, start, count []int64) error {
 	if err := v.file.checkOpen(); err != nil {
 		return err
 	}

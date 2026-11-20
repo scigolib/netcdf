@@ -28,6 +28,16 @@ func openFixture(t *testing.T, name string) *netcdf.File {
 	return f
 }
 
+// numRecs returns the current length of the file's unlimited dimension, if any.
+func numRecs(f *netcdf.File) int64 {
+	for _, d := range f.Dimensions() {
+		if d.Unlimited() {
+			return d.Len()
+		}
+	}
+	return 0
+}
+
 func mustVar(t *testing.T, f *netcdf.File, name string) *netcdf.Variable {
 	t.Helper()
 	v, ok := f.Variable(name)
@@ -179,15 +189,15 @@ func TestRecordLayout(t *testing.T) {
 
 func checkRecordFile(t *testing.T, f *netcdf.File) {
 	t.Helper()
-	if f.NumRecs() != 3 {
-		t.Fatalf("NumRecs = %d, want 3", f.NumRecs())
+	if numRecs(f) != 3 {
+		t.Fatalf("record count = %d, want 3", numRecs(f))
 	}
 	timeDim, ok := f.Dimension("time")
 	if !ok || !timeDim.Unlimited() || timeDim.Len() != 3 {
 		t.Fatalf("time = %+v %v", timeDim, ok)
 	}
 	temp := mustVar(t, f, "temp")
-	if !temp.Record() {
+	if !temp.Dims()[0].Unlimited() {
 		t.Fatal("temp is not a record variable")
 	}
 	wantSlice(t, "temp.Shape", temp.Shape(), []int64{3, 2})
@@ -218,8 +228,8 @@ func checkRecordFile(t *testing.T, f *netcdf.File) {
 
 func TestSingleRecordVariable(t *testing.T) {
 	f := openFixture(t, "single_rec-cdf1.nc")
-	if f.NumRecs() != 5 {
-		t.Fatalf("NumRecs = %d, want 5", f.NumRecs())
+	if numRecs(f) != 5 {
+		t.Fatalf("record count = %d, want 5", numRecs(f))
 	}
 	wantSlice(t, "b", readAll[int8](t, f, "b"), []int8{7, -7, 0, 42, -42})
 
@@ -236,7 +246,7 @@ func TestEmptyFile(t *testing.T) {
 	if f.Format() != netcdf.FormatClassic {
 		t.Errorf("Format = %v", f.Format())
 	}
-	if f.NumRecs() != 0 || len(f.Dimensions()) != 0 || len(f.Variables()) != 0 || len(f.Attributes()) != 0 {
+	if numRecs(f) != 0 || len(f.Dimensions()) != 0 || len(f.Variables()) != 0 || len(f.Attributes()) != 0 {
 		t.Errorf("empty file has content: %+v", f)
 	}
 }
@@ -272,8 +282,9 @@ func TestReadErrors(t *testing.T) {
 	if err := a.ReadSlice(&neg, []int64{0, -1}, []int64{1, 3}); !errors.Is(err, netcdf.ErrOutOfRange) {
 		t.Errorf("ReadSlice with a negative start = %v, want ErrOutOfRange", err)
 	}
-	if err := a.Read(nil); err == nil {
-		t.Error("Read(nil) returned no error")
+	var nilPtr *[]float32
+	if err := a.Read(nilPtr); err == nil {
+		t.Error("Read(nil pointer) returned no error")
 	}
 	empty := []float32{}
 	if err := a.Read(&empty); err == nil {
@@ -310,8 +321,8 @@ func checkPaddingHeader(t *testing.T, f *netcdf.File) {
 	if f.Format() != netcdf.FormatClassic64 {
 		t.Errorf("Format = %v, want CDF-2", f.Format())
 	}
-	if len(f.Dimensions()) != 0 || f.NumRecs() != 0 {
-		t.Errorf("dims=%d numrecs=%d, want none", len(f.Dimensions()), f.NumRecs())
+	if len(f.Dimensions()) != 0 || numRecs(f) != 0 {
+		t.Errorf("dims=%d records=%d, want none", len(f.Dimensions()), numRecs(f))
 	}
 	wantTypes := map[string]netcdf.Type{
 		"raw_data_start_date": netcdf.TypeDouble,
@@ -403,11 +414,11 @@ func TestLayoutFixtures(t *testing.T) {
 
 func checkLayoutFile(t *testing.T, f *netcdf.File) {
 	t.Helper()
-	if f.NumRecs() != 5 {
-		t.Fatalf("NumRecs = %d, want 5", f.NumRecs())
+	if numRecs(f) != 5 {
+		t.Fatalf("record count = %d, want 5", numRecs(f))
 	}
 	cube := mustVar(t, f, "cube")
-	if cube.Record() {
+	if cube.Dims()[0].Unlimited() {
 		t.Fatal("cube is a record variable")
 	}
 	wantSlice(t, "cube.Shape", cube.Shape(), []int64{4, 2, 3})
