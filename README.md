@@ -116,8 +116,8 @@ are the proof). `ncdump` and `nccopy` read it too — checked by hand against ne
 - **Pure Go, zero cgo.** Cross-compiles to every platform Go supports, no C toolchain.
 - **One ecosystem.** NetCDF-4 will sit on [scigolib/hdf5](https://github.com/scigolib/hdf5),
   our own HDF5 engine; the classic formats implemented today need no other library.
-- **Checked against the C implementation.** We read files `ncdump` writes, and files we write
-  have been read back by `ncdump` and `nccopy` by hand (netCDF-C 4.10.1, 2026-11-14).
+- **Checked against the C implementation.** We read files that `ncgen` writes, and the files
+  we write have been read back by `ncdump` and `nccopy` by hand (netCDF-C 4.10.1, 2026-11-14).
 
 ## Documentation
 
