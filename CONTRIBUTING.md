@@ -5,7 +5,8 @@ Thank you for your interest in contributing to scigolib/netcdf!
 ## Prerequisites
 
 - **Go 1.25+** ([download](https://go.dev/dl/))
-- Optional, for interop checks: the netCDF C tools (`ncdump`, `nccopy`) and Python with `h5py`
+- Optional, for interop checks: the netCDF C tools (`ncgen`, `ncdump`, `nccopy`) and Python
+  with `h5py`
 
 ## Building & Testing
 
@@ -14,6 +15,18 @@ go build ./...                  # build all packages
 go test ./...                   # run all tests
 go test -v -run TestName        # run a single test
 go test -cover ./...            # check coverage
+```
+
+### Oracle checks
+
+The differential harness compares our reader and writer against netCDF-C's own tools over a
+corpus from its test suite. It needs `ncgen`, `ncdump` and `nccopy` (the `netcdf-bin`
+package on Debian/Ubuntu) and never skips with the tag set — a missing tool is a failure:
+
+```bash
+go test -tags oracle -run TestOracle -v ./...
+# or point at one directory that holds all three tools:
+NETCDF_ORACLE_BIN=/path/to/tools go test -tags oracle -run TestOracle -v ./...
 ```
 
 The race detector needs cgo: `go test -race ./...` runs on Linux, macOS, or in WSL on Windows.

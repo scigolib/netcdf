@@ -1,7 +1,8 @@
 The files in this directory that are copied from the netCDF-C test corpus
-(nctest_names-cdf1.nc, nctest_names-cdf2.nc, null_byte_padding-cdf2.nc and
-bad_cdf5_begin.nc) are distributed under the licence below, reproduced from
-the netCDF-C repository at v4.10.1 (pin ad3d53827).
+(nctest_names-cdf1.nc, nctest_names-cdf2.nc, null_byte_padding-cdf2.nc,
+bad_cdf5_begin.nc, and the CDL models under oracle/cdl/) are distributed under
+the licence below, reproduced from the netCDF-C repository at v4.10.1
+(pin ad3d53827).
 
 Copyright 2025 Unidata
 
