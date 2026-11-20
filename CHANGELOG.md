@@ -26,3 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   slabs past the current record count; `Close` writes the final record count. `_FillValue`
   overrides the type's default. Output is byte-identical to `ncgen` for every model and format
   the classic-only oracle can produce, and `ncdump`/`nccopy -k 1|2|5` read it.
+
+### Changed
+
+- The minimum Go version is now 1.27.
