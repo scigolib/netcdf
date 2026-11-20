@@ -29,4 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The minimum Go version is now 1.27.
+- The minimum Go version is now 1.27. The floor follows the security-support window (Go 1.26
+  and 1.27 today). Go 1.27 also enables generic methods, which let one type-safe method
+  replace a family of per-type methods; this library keeps its typed helpers as generic
+  functions and treats generic methods as an additive option, not an adopted API.
