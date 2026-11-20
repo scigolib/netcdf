@@ -83,6 +83,49 @@ The initial fill is compared with the oracle through `fill-cdf*`; record
 extension fill cannot be expressed in CDL, so it was validated by a manual
 probe against netCDF-C 4.10.1.
 
+## Oracle corpus (differential harness)
+
+`oracle/cdl/` holds nine CDL models copied unchanged from netCDF-C's `nc_test/` at the
+same pin. The `//go:build oracle` harness (`oracle_corpus_test.go`) generates every model
+for CDF-1, CDF-2 and CDF-5, reads it with our reader, writes it back with our writer, and
+compares the `ncdump` text of both files (full precision, same dataset name); `nccopy -k`
+then converts both to another kind and the converted texts are compared too.
+
+Run it where the reference tools are present:
+
+```sh
+go test -tags oracle -run TestOracle -v ./...            # ncgen, ncdump, nccopy on PATH
+NETCDF_ORACLE_BIN=/path/to/one/dir go test -tags oracle -run TestOracle -v ./...
+```
+
+`NETCDF_ORACLE_BIN` names one directory that holds all three tools; the WSL classic build
+keeps them in two, so prepend both to `PATH`:
+
+```sh
+PATH=/tmp/ncbuild/src/ncgen:/tmp/ncbuild/src/ncdump:$PATH \
+    go test -tags oracle -run TestOracle -v ./...
+```
+
+With the tag set a missing tool fails the test — it never skips. CI runs the same command
+in the `Oracle - netCDF-C tools` job.
+
+Two upstream models are not in the corpus: `ref_tst_diskless2.cdl` uses the enhanced data
+model (enum, opaque, vlen, string) and `ref_tst_http_nc4b.cdl` uses two unlimited
+dimensions; neither is expressible in the classic formats. `ref_tst_http_nc4e.cdl` is
+byte-identical to `ref_tst_http_nc4a.cdl` and is not duplicated.
+
+| Model | sha256 |
+|---|---|
+| `nc_enddef.cdl` | `194ef630428c0a94253222e2ac4d79ddd3435768352992ed7c41606f8382ec39` |
+| `nc_sync.cdl` | `35b49a32538e47e99e031c695d87d94e199400d9f9543d7bf1558170abe39381` |
+| `ref_tst_diskless3_create.cdl` | `5295075d0ec3cd680487a3a7e36c576ae57719b086870e3b610380a8f40f6bd7` |
+| `ref_tst_diskless3_open.cdl` | `9f0e24bae891062b10f4b3be5b656e45505afe224efcefd21a61ac9d6ae6f97f` |
+| `ref_tst_http_nc3.cdl` | `e5307fea1ee9db7ab8df65dbb3f6e405cc03b24215ebedfb0600be845618463b` |
+| `ref_tst_http_nc4a.cdl` | `a0421fd9525b956f7b025277e8a786fa7b6172680a79f4778450612dffe2c46e` |
+| `ref_tst_http_nc4c.cdl` | `5948fac38b5144e3262b54364ed627b4795218b5cf93038b479b967cbfbfb100` |
+| `ref_tst_http_nc4f.cdl` | `1839721cc59c7123899d518e006361b6cbb978af18296c7e30129aa70b5a21b9` |
+| `tst_diskless5.cdl` | `2e4a770bd27f5059b7e41ecbb26898e207e50fedc09e41deb139bf1fd7c806c5` |
+
 ## Files taken from the netCDF-C test corpus
 
 Four files are copied unchanged from the same pin. netCDF-C is distributed
