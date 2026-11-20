@@ -19,6 +19,8 @@ next. The API is not stable before v1.0.
 go get github.com/scigolib/netcdf
 ```
 
+Requires Go 1.27 or later.
+
 ## Quick start
 
 ```go

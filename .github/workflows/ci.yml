@@ -1,7 +1,8 @@
 name: CI
 
 # GitHub Flow: main is always releasable; work happens in short-lived branches via PRs.
-# Go: oldstable + stable (the two supported releases), plus the go.mod minimum for libraries.
+# Go: stable (the latest supported release) plus the go.mod minimum for libraries. The go line
+# is the floor: there is no leg below it (GOTOOLCHAIN: local would fail under an older toolchain).
 # The ruleset requires ONE check, the "Required checks" gate at the end: jobs and the matrix can change
 # without touching the ruleset. A new required job goes into the gate's `needs`.
 # Tool versions are pinned and bumped on purpose (SKILL.md § Versions): an unpinned tool
@@ -18,7 +19,7 @@ permissions:
 
 env:
   # Never download a newer Go behind our back: the job must run the Go it asked for, or
-  # the minimum and oldstable tests prove nothing.
+  # the minimum test proves nothing.
   GOTOOLCHAIN: local
   # golangci-lint: exact version (its docs: "don't start to fail all builds at the same time").
   # Bump in its own PR that fixes the new findings, and with each new Go minor: an older
@@ -42,7 +43,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        go-version: [oldstable, stable]
+        go-version: [stable]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
