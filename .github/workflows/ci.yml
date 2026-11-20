@@ -198,13 +198,34 @@ jobs:
         with:
           go-version-input: stable
 
+  # The C oracle: the differential harness is a build-tagged test, and this job
+  # installs the reference tools and runs it on every push and PR. With the tag set a
+  # missing tool fails the harness — a skipped oracle is a hole, not a pass. It is part of
+  # the required gate below.
+  oracle:
+    name: Oracle - netCDF-C tools
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: true
+      - name: Install the reference tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends netcdf-bin
+          dpkg-query -W -f='netcdf-bin ${Version}\n' netcdf-bin
+      - name: Differential harness
+        run: go test -tags oracle -run 'TestOracle' -count=1 -v ./...
+
   # The one required check. `if: always()` and the explicit result check matter: a job that
   # is skipped (for example because a job it needs failed) counts as passed for a required
   # check, so a gate without them can let a red PR through.
   required:
     name: Required checks
     if: always()
-    needs: [test, test-minimum, build-386, lint, lint-targets, formatting]
+    needs: [test, test-minimum, build-386, lint, lint-targets, formatting, oracle]
     runs-on: ubuntu-latest
     steps:
       - name: Every required job succeeded
