@@ -50,10 +50,6 @@ func newWriter(f *os.File, h *cdf.Header, format Format, fill func(*cdf.Var) []b
 // Format returns the format the file is written in.
 func (w *Writer) Format() Format { return w.format }
 
-// NumRecs returns the number of records written so far — the current length of
-// the unlimited dimension.
-func (w *Writer) NumRecs() int64 { return w.h.NumRecs }
-
 // Variables returns the file's variables in definition order.
 func (w *Writer) Variables() []*VarWriter {
 	return append([]*VarWriter(nil), w.vars...)
@@ -98,9 +94,6 @@ func (v *VarWriter) Name() string { return v.v.Name }
 // Type returns the variable's netCDF type.
 func (v *VarWriter) Type() Type { return v.typ }
 
-// Record reports whether the variable's first dimension is the unlimited one.
-func (v *VarWriter) Record() bool { return v.v.Record }
-
 // Shape returns the variable's current shape; for a record variable the first
 // entry is the current record count.
 func (v *VarWriter) Shape() []int64 {
@@ -114,8 +107,14 @@ func (v *VarWriter) Shape() []int64 {
 // Write writes the whole variable: from the first element to the last. For a
 // fixed-size variable the values must fill its shape; for a record variable
 // they are written from record 0 and extend the record dimension by as many
-// records as they cover.
-func (v *VarWriter) Write(values any) error {
+// records as they cover. The element type is inferred from values and checked
+// against the variable's type at run time.
+func (v *VarWriter) Write[T any](values []T) error {
+	return v.write(values)
+}
+
+// write is the shared erased path behind the typed methods.
+func (v *VarWriter) write(values any) error {
 	if err := v.w.checkOpen(); err != nil {
 		return err
 	}
@@ -150,8 +149,9 @@ func (v *VarWriter) Write(values any) error {
 // first dimension is addressed by record number; writing past the current
 // record count fills and appends the records in between with the fill value,
 // so a start far beyond the current count costs a fill of every record in
-// between — the same behavior as netCDF-C's NCvnrecs.
-func (v *VarWriter) WriteSlice(values any, start, count []int64) error {
+// between — the same behavior as netCDF-C's NCvnrecs. The element type is
+// inferred from values and checked against the variable's type at run time.
+func (v *VarWriter) WriteSlice[T any](values []T, start, count []int64) error {
 	if err := v.w.checkOpen(); err != nil {
 		return err
 	}

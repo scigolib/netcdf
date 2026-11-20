@@ -30,7 +30,7 @@ func mustWVar(t *testing.T, w *netcdf.Writer, name string) *netcdf.VarWriter {
 	return v
 }
 
-func mustWrite(t *testing.T, v *netcdf.VarWriter, values any) {
+func mustWrite[T any](t *testing.T, v *netcdf.VarWriter, values []T) {
 	t.Helper()
 	if err := v.Write(values); err != nil {
 		t.Fatalf("write %q: %v", v.Name(), err)

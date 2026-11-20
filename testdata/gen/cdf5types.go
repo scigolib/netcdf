@@ -41,7 +41,22 @@ func main() {
 		if !ok {
 			panic("missing variable " + name)
 		}
-		if err := v.Write(values); err != nil {
+		var err error
+		switch vals := values.(type) {
+		case []byte:
+			err = v.Write(vals)
+		case []uint16:
+			err = v.Write(vals)
+		case []uint32:
+			err = v.Write(vals)
+		case []int64:
+			err = v.Write(vals)
+		case []uint64:
+			err = v.Write(vals)
+		default:
+			panic("unsupported values type")
+		}
+		if err != nil {
 			panic(err)
 		}
 	}

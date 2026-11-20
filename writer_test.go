@@ -9,6 +9,21 @@ import (
 	"github.com/scigolib/netcdf"
 )
 
+// recs returns the writer's current record count through a record variable's
+// shape (the record count is per dimension now, not a separate public value).
+func recs(t *testing.T, w *netcdf.Writer, name string) int64 {
+	t.Helper()
+	v, ok := w.Variable(name)
+	if !ok {
+		t.Fatalf("variable %q not found", name)
+	}
+	shape := v.Shape()
+	if len(shape) == 0 {
+		t.Fatalf("variable %q has no dimensions", name)
+	}
+	return shape[0]
+}
+
 // TestWriterRoundTrip reads back what we wrote through the public reader: the
 // metadata, the fixed variable, the record variables and the record count.
 func TestWriterRoundTrip(t *testing.T) {
@@ -18,8 +33,8 @@ func TestWriterRoundTrip(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 	writeLayout(t, w)
-	if w.NumRecs() != 5 {
-		t.Errorf("NumRecs = %d, want 5", w.NumRecs())
+	if got := recs(t, w, "temp"); got != 5 {
+		t.Errorf("record count = %d, want 5", got)
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
@@ -33,8 +48,8 @@ func TestWriterRoundTrip(t *testing.T) {
 	if f.Format() != netcdf.FormatClassic64Data {
 		t.Errorf("Format = %v, want CDF-5", f.Format())
 	}
-	if f.NumRecs() != 5 {
-		t.Errorf("NumRecs = %d, want 5", f.NumRecs())
+	if numRecs(f) != 5 {
+		t.Errorf("record count = %d, want 5", numRecs(f))
 	}
 	cube, ok := f.Variable("cube")
 	if !ok {
@@ -84,8 +99,8 @@ func TestWriterRecordExtension(t *testing.T) {
 	if err := tw.WriteSlice([]int32{99, 98}, []int64{2, 0}, []int64{1, 2}); err != nil {
 		t.Fatalf("WriteSlice: %v", err)
 	}
-	if w.NumRecs() != 3 {
-		t.Fatalf("NumRecs = %d, want 3", w.NumRecs())
+	if got := recs(t, w, "temp"); got != 3 {
+		t.Fatalf("record count = %d, want 3", got)
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close: %v", err)

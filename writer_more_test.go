@@ -165,8 +165,8 @@ func TestWriterSelectionErrors(t *testing.T) {
 	if err := v.WriteSlice([]int32{}, []int64{0, 0}, []int64{0, 0}); err != nil {
 		t.Errorf("empty selection = %v, want nil", err)
 	}
-	if w.NumRecs() != 0 {
-		t.Errorf("NumRecs = %d after an empty selection", w.NumRecs())
+	if got := recs(t, w, "rec"); got != 0 {
+		t.Errorf("record count = %d after an empty selection", got)
 	}
 	if err := v.WriteSlice([]int32{1, 2}, []int64{0}, []int64{1}); !errors.Is(err, netcdf.ErrOutOfRange) {
 		t.Errorf("wrong rank = %v, want ErrOutOfRange", err)
@@ -191,8 +191,8 @@ func TestRejectedWriteDoesNotExtend(t *testing.T) {
 	if !errors.Is(err, netcdf.ErrOutOfRange) {
 		t.Fatalf("out-of-range inner dimension = %v, want ErrOutOfRange", err)
 	}
-	if w.NumRecs() != 0 {
-		t.Fatalf("a rejected write extended the record count to %d", w.NumRecs())
+	if got := recs(t, w, "temp"); got != 0 {
+		t.Fatalf("a rejected write extended the record count to %d", got)
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
@@ -202,8 +202,8 @@ func TestRejectedWriteDoesNotExtend(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	defer func() { _ = f.Close() }()
-	if f.NumRecs() != 0 {
-		t.Fatalf("reopened file has %d records, want 0", f.NumRecs())
+	if numRecs(f) != 0 {
+		t.Fatalf("reopened file has %d records, want 0", numRecs(f))
 	}
 }
 
@@ -238,10 +238,11 @@ type randVar struct {
 
 // randModel is one generated file.
 type randModel struct {
-	format   netcdf.Format
-	schema   *netcdf.Schema
-	vars     []randVar
-	wantRecs int64
+	format    netcdf.Format
+	schema    *netcdf.Schema
+	vars      []randVar
+	wantRecs  int64
+	recordVar string // name of one record variable, "" when the model has none
 }
 
 // TestRandomRoundTrip is the write→read property over generated models: every
@@ -278,6 +279,7 @@ func buildRandomModel(rng *rand.Rand) randModel {
 		m.vars = append(m.vars, randVar{name: name, typ: typ, values: randomValues(rng, typ, count)})
 		if timeDim != nil && len(vdims) > 0 && vdims[0] == timeDim {
 			m.wantRecs = records
+			m.recordVar = name
 		}
 	}
 	return m
@@ -311,12 +313,14 @@ func runRoundTrip(t *testing.T, iter int, m randModel) {
 		if !ok {
 			t.Fatalf("iteration %d: variable %q not found", iter, wv.name)
 		}
-		if err := v.Write(wv.values); err != nil {
+		if err := writeTyped(t, v, wv.values); err != nil {
 			t.Fatalf("iteration %d: write %q: %v", iter, wv.name, err)
 		}
 	}
-	if w.NumRecs() != m.wantRecs {
-		t.Errorf("iteration %d: NumRecs = %d, want %d", iter, w.NumRecs(), m.wantRecs)
+	if m.recordVar != "" {
+		if got := recs(t, w, m.recordVar); got != m.wantRecs {
+			t.Errorf("iteration %d: record count = %d, want %d", iter, got, m.wantRecs)
+		}
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("iteration %d: Close: %v", iter, err)
@@ -360,6 +364,36 @@ func fillSlice[T any](count int64, next func() T) []T {
 	return s
 }
 
+// writeTyped writes values through the typed writer method, switching on the
+// Go slice type — the dynamic pattern the package docs describe.
+func writeTyped(t *testing.T, v *netcdf.VarWriter, values any) error {
+	t.Helper()
+	switch vals := values.(type) {
+	case []int8:
+		return v.Write(vals)
+	case []byte:
+		return v.Write(vals)
+	case []int16:
+		return v.Write(vals)
+	case []uint16:
+		return v.Write(vals)
+	case []int32:
+		return v.Write(vals)
+	case []uint32:
+		return v.Write(vals)
+	case []float32:
+		return v.Write(vals)
+	case []float64:
+		return v.Write(vals)
+	case []int64:
+		return v.Write(vals)
+	case []uint64:
+		return v.Write(vals)
+	}
+	t.Fatalf("unsupported values type %T", values)
+	return nil
+}
+
 // randomValues builds count values of the Go type matching typ.
 func randomValues(rng *rand.Rand, typ netcdf.Type, count int64) any {
 	switch typ {
@@ -385,8 +419,9 @@ func randomValues(rng *rand.Rand, typ netcdf.Type, count int64) any {
 		return fillSlice(count, func() int64 { return rng.Int63() * int64(1-rng.Intn(2)*2) })
 	case netcdf.TypeUInt64:
 		return fillSlice(count, rng.Uint64)
+	default:
+		panic("randomValues: no values for type " + typ.String())
 	}
-	return nil
 }
 
 // readTyped reads a whole variable back into the Go slice type matching typ.
@@ -428,8 +463,9 @@ func readTyped(t *testing.T, f *netcdf.File, name string, typ netcdf.Type) any {
 	case netcdf.TypeUInt64:
 		s := make([]uint64, n)
 		return readInto(t, v, s, &s)
+	default:
+		t.Fatalf("no Go type for %v", typ)
 	}
-	t.Fatalf("no Go type for %v", typ)
 	return nil
 }
 

@@ -78,7 +78,7 @@ func writeThroughOurAPI(t *testing.T, src, dst string) {
 		if !ok {
 			t.Fatalf("the writer lost variable %q", v.Name())
 		}
-		if err := vw.Write(values); err != nil {
+		if err := writeTyped(t, vw, values); err != nil {
 			t.Fatalf("writing %q: %v", v.Name(), err)
 		}
 	}
@@ -174,12 +174,13 @@ func readWholeVariable(t *testing.T, v *netcdf.Variable) any {
 		p := make([]uint64, n)
 		mustRead(t, v, &p)
 		return p
+	default:
+		t.Fatalf("variable %q has type %s with no Go mapping", v.Name(), v.Type())
 	}
-	t.Fatalf("variable %q has type tag %d with no Go mapping", v.Name(), uint8(v.Type()))
 	return nil
 }
 
-func mustRead(t *testing.T, v *netcdf.Variable, dst any) {
+func mustRead[T any](t *testing.T, v *netcdf.Variable, dst *[]T) {
 	t.Helper()
 	if err := v.Read(dst); err != nil {
 		t.Fatalf("reading %q: %v", v.Name(), err)
