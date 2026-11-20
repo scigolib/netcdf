@@ -20,10 +20,11 @@ go get github.com/scigolib/netcdf
 ```
 
 Requires Go 1.27 or newer. We support only Go releases that still receive security fixes
-(1.26 and 1.27 today). Go 1.27 also enables generic methods, which let one type-safe method
-replace a family of per-type methods — so the API stays small. This library does not adopt
-them: its typed helpers are generic functions, and a generic method would be added only
-where it collapses a real family.
+(1.26 and 1.27 today). The floor also matches scigolib/hdf5, the foundation NetCDF-4 builds
+on: a module's go line must be at least its dependencies'. Go 1.27 additionally enables
+generic methods, which let one type-safe method replace a family of per-type methods; this
+library keeps its typed helpers as generic functions and does not adopt them, though a
+generic method would be added where it collapses a real family.
 
 ## Quick start
 
